@@ -58,7 +58,7 @@ let tweet;
 app.get('/', async function (req, res) {
     const data = await getExchangeRates()
     let date = dateFormat(now, "dddd, mmmm dS, yyyy, h:MM:ss TT");
-    tweet = date+" \r\n 1 💵 USD >>>> GH¢ "+data[0]?.new_amount+" \n 1 💶 EUR >>>> GH¢ "+data[1]?.new_amount +" \n 1 💷 GBP >>>> GH¢ "+data[2]?.new_amount+"."
+    tweet = date+"\n \n 1 💵 USD >>>> GH¢ "+data[0]?.new_amount+" \n 1 💶 EUR >>>> GH¢ "+data[1]?.new_amount +" \n 1 💷 GBP >>>> GH¢ "+data[2]?.new_amount+" \n \n v1.0.0"
     // client.post('statuses/update',{status:tweet}).then(tweet=> console.log('tweeted '+ tweet)).catch(e=>console.log(e))
     // res.json(tweet);
     try {

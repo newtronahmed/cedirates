@@ -21,8 +21,11 @@ var client = new TwitterApi({
     appSecret: process.env.API_KEY_SECRET,
     accessToken: process.env.ACCESS_TOKEN,
     accessSecret: process.env.ACCESS_TOKEN_SECRET,
+    // bearerToken:process.env.BEARER_TOKEN
 
 })
+var bearerClient = new TwitterApi(process.env.BEARER_TOKEN)
+const myID = '1272709903325507589'
 // var client = new TwitterApi(process.env.BEARER_TOKEN);
 const haves = {
     "USD": "USD",
@@ -54,9 +57,9 @@ async function getExchangeRates() {
         console.log('Something went wrong while getExhangeRates' + error)
     }
 }
-async function getExchangeRate(cur) {
+async function getExchangeRate(cur, amount = 1) {
     try {
-        let result = await fetch('https://api.api-ninjas.com/v1/convertcurrency?have=' + cur + '&want=GHS&amount=1',
+        let result = await fetch('https://api.api-ninjas.com/v1/convertcurrency?have=' + cur + '&want=GHS&amount='+amount,
             { headers: { 'X-Api-Key': process.env.CURRENCY_CONVERTER_API_KEY } });
         result = result.json()
         return result;
@@ -82,34 +85,53 @@ app.get('/', async function (req, res) {
         res.json({ error, status: error.status })
     }
 });
-const stream = await client.v1.filterStream({ track: '@newtroahmed' })
-stream.autoReconnect = true;
+const ruleset = {
+    rules: [
+        {value:'@newtroahmed', tag:'mentions'}
+    ]
+}
+// const me = await client.v2.me()
+// console.log(me)
+const callback = async({data}) => {
+    // const mention = req.body;
+    if(data.author_id === '1272709903325507589' ) {
+        return
+    }
+    console.log(data)
+    // console.log(data.text.split("@newtroahmed "))
+    // const mentionText = data.text.split('@newtroahmed ')[1]
+    let reply;
+
+    const match = data.text.match(/(@newtroahmed)\s*(\d+\.\d+|\d+)\s*([A-Z]{3})/)
+    if (!match) {
+        // reply = "Invalid mention format. Try @cedi_rates " + Math.floor(Math.random() * 1000) + " USD"
+        return
+        // return await client.v2.reply(reply, data.id )
+        // res.status(200).send("Invalid mention format. Try @newtroahmed 10 USD")
+    }
+    const amount = match[2]
+    const from = match[3].toUpperCase()
+    const result = await getExchangeRate(from,amount)
+    reply = `The equivalent of ${amount} ${from} is ${result?.new_amount} GHS. \n \n Thank you for using this bot 😎`
+    // reply = "The equivalent of " + match[1] + " "+from+ " is " + result?.new_amount + " \n \n Thank you for using this bot"
+    await client.v2.reply(reply, data.id );
+}
+await bearerClient.v2.updateStreamRules({ add: [{value:'@newtroahmed', tag:'mentions'}] })
+const stream = await bearerClient.v2.searchStream({autoConnect:true , expansions:["author_id"]})
+// console.log(stream)
+// stream.autoReconnect = true;
+console.log(stream.data)
 stream.on(
     ETwitterStreamEvent.ConnectError, err=> console.log('connection error',err)
 )
 stream.on(
-    ETwitterStreamEvent.Data, ()=> console.log('Twitter sent somethingj')
+    ETwitterStreamEvent.Data, (data)=> callback(data)
 )
+
+
 stream.on('tweet', callback)
-
-const callback = async(tweet) => {
-    // const mention = req.body;
-    const mentionText = tweet.text
-    let reply;
-
-    const match = mentionText.match(/(\d+\.\d+|\d+)\s*([A-Z]{3})/)
-    if (!match) {
-        reply = "Invalid mention format. Try @cedi_rates " + Math.floor(Math.random() * 1000) + " USD"
-
-        res.status(200).send("Invalid mention format. Try @cedi_rates 10 USD")
-    }
-    const amount = match[1]
-    const from = match[2]
-    const result = await getExchangeRate(from)
-    reply = "The equivalent of " + match[1] + " is " + result?.new_amount + " \n \n Thank you for using this bot"
-    await client.v2.tweet(tweet);
-}
-
+// stream.close()
+// stream.close()
 // app.post('/mentions', (req, res) => {
 //     const mention = req.body;
 //     const mentionText = mention.text
@@ -126,7 +148,7 @@ const callback = async(tweet) => {
 //     const result = getExchangeRate(from)
 //     tweet = "The equivalent of " + match[1] + " is " + result?.new_amount + " \n \n Thank you for using this bot"
 
-
+// stream.close()
 
 // })
 

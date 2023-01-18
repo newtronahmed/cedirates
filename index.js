@@ -85,11 +85,7 @@ app.get('/', async function (req, res) {
         res.json({ error, status: error.status })
     }
 });
-const ruleset = {
-    rules: [
-        {value:'@newtroahmed', tag:'mentions'}
-    ]
-}
+
 // const me = await client.v2.me()
 // console.log(me)
 const callback = async({data}) => {
@@ -113,7 +109,6 @@ const callback = async({data}) => {
     const from = match[3].toUpperCase()
     const result = await getExchangeRate(from,amount)
     reply = `The equivalent of ${amount} ${from} is ${result?.new_amount} GHS. \n \n Thank you for using this bot 😎`
-    // reply = "The equivalent of " + match[1] + " "+from+ " is " + result?.new_amount + " \n \n Thank you for using this bot"
     await client.v2.reply(reply, data.id );
 }
 await bearerClient.v2.updateStreamRules({ add: [{value:'@newtroahmed', tag:'mentions'}] })
@@ -128,29 +123,9 @@ stream.on(
     ETwitterStreamEvent.Data, (data)=> callback(data)
 )
 
-
-stream.on('tweet', callback)
-// stream.close()
-// stream.close()
-// app.post('/mentions', (req, res) => {
-//     const mention = req.body;
-//     const mentionText = mention.text
-//     let tweet;
-
-//     const match = mentionText.match(/(\d+\.\d+|\d+)\s*([A-Z]{3})/)
-//     if (!match) {
-//         tweet = "Invalid mention format. Try @cedi_rates " + Math.floor(Math.random() * 1000) + " USD"
-
-//         res.status(200).send("Invalid mention format. Try @cedi_rates 10 USD")
-//     }
-//     const amount = match[1]
-//     const from = match[2]
-//     const result = getExchangeRate(from)
-//     tweet = "The equivalent of " + match[1] + " is " + result?.new_amount + " \n \n Thank you for using this bot"
-
-// stream.close()
-
-// })
+app.get("/test",(req,res)=> {
+    res.send('Platform ok')
+})
 
 app.listen(PORT, function () {
     console.log('server started on port ' + PORT);

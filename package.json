@@ -14,12 +14,17 @@
   "author": "@neutronahmed",
   "license": "ISC",
   "dependencies": {
+    "cron": "^2.2.0",
     "dateformat": "^5.0.3",
     "dotenv": "^16.0.1",
     "express": "^4.18.1",
     "node-fetch": "^3.2.9",
     "twitter": "^1.7.1",
-    "twitter-api-v2": "^1.12.3"
+    "twitter-api-v2": "^1.12.3",
+    "winston": "^3.8.2"
   },
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^18.11.18"
+  }
 }

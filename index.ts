@@ -1,12 +1,12 @@
 
 // import express from "express";
+// declare module 'cron';
+// import fetch, { Headers, } from "node-fetch";
+import * as dotenv from 'dotenv'
+import * as cron from 'cron'
+import * as winston from 'winston'
+// import * as fs from 'fs'
 
-// declare var require:any;
-const dotenv = require("dotenv");
-const fetch = require("node-fetch");
-const cron = require('cron')
-const winston = require("winston");
-// import Twitter from 'twitter';
 type Currency = "USD" | "EUR" | "GBP"
 const {
   TwitterApi,
@@ -16,7 +16,13 @@ const {
 } = require("twitter-api-v2");
 // import dateFormat from "dateformat";
 const { DateTimeFormat } = require('intl')
-
+interface StreamResponseData {
+  data: {
+    text: string,
+    id: string,
+    author_id: string,
+  }
+}
 // const app = express();
 // const PORT = process.env.PORT || 3001;
 dotenv.config();
@@ -24,6 +30,11 @@ const logger = winston.createLogger({
   level: 'error',
   transports: [new winston.transports.File({ filename: 'error.log' })]
 })
+const ratesLogger = winston.createLogger({
+  level:"rates",
+  transports: [new winston.transports.File({filename:'rates.json'})]
+})
+
 
 
 var client = new TwitterApi({
@@ -41,7 +52,7 @@ const haves = {
   EUR: "EUR",
   GBP: "GBP",
 };
-async function convertTo(cur) {
+async function convertTo(cur:Currency) {
   try {
     let res = await fetch(
       "https://api.api-ninjas.com/v1/convertcurrency?have=" +
@@ -57,7 +68,7 @@ async function convertTo(cur) {
     console.log("something went wrong" + error);
   }
 }
-async function getExchangeRates():Promise<Array<any> > {
+async function getExchangeRates(): Promise<Array<any>> {
   try {
     return await Promise.all([
       convertTo("USD"),
@@ -71,21 +82,26 @@ async function getExchangeRates():Promise<Array<any> > {
     return []
   }
 }
-async function getExchangeRate(cur:Currency, amount = 1) {
+interface ExchangeRateResponse {
+  new_amount:string,
+}
+async function getExchangeRate(cur: Currency, amount: string | number = 1):Promise<ExchangeRateResponse | unknown >{
   try {
     const headers = new Headers()
 
-    headers.append('X-Api-Key',process.env.CURRENCY_CONVERTER_API_KEY ?? '')
-    let result = await fetch(
+    headers.append('X-Api-Key', process.env.CURRENCY_CONVERTER_API_KEY ?? '')
+    let result:ExchangeRateResponse | unknown = await fetch(
       "https://api.api-ninjas.com/v1/convertcurrency?have=" +
       cur +
       "&want=GHS&amount=" +
       amount,
       // { headers: { "X-Api-Key": process.env.CURRENCY_CONVERTER_API_KEY } }
-      {headers}
-    );
-    return result = await result.json();
+      { headers }
+    ).then(res=> res.json())
     
+    // result = await result.json();
+    return result;
+
   } catch (err) {
     // res.json({ err });
     logger.error(err)
@@ -95,9 +111,10 @@ async function getExchangeRate(cur:Currency, amount = 1) {
 const now = Date();
 // app.get("/", async function (req, res) {
 const TweetDailyExchangeRates = async () => {
-  let tweet;
+  let tweet:string;
 
   const data = await getExchangeRates();
+
   // let date = dateFormat(now, "dddd, mmmm dS, yyyy, h:MM:ss TT");
   let options = { year: 'numeric', month: 'long', weekday: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric', }
   let date = DateTimeFormat('en-US', options).format(new Date())
@@ -132,7 +149,8 @@ const TweetDailyExchangeRates = async () => {
 const job = new cron.CronJob('00 00 09 * * *', TweetDailyExchangeRates)
 job.start()
 
-const callback = async ({ data }) => {
+const callback = async (res: StreamResponseData) => {
+  const data = res.data;
   // const mention = req.body;
   if (data.author_id === myID) {
     return;
@@ -142,7 +160,7 @@ const callback = async ({ data }) => {
   // const mentionText = data.text.split('@newtroahmed ')[1]
   let reply;
 
-  const match = data.text.match(/(@newtroahmed)\s*(\d+\.\d+|\d+)\s*([A-Z]{3})/);
+  const match = data.text.match(/(@newtroahmed)\s*(\d+\.\d+|\d+)\s*([USD|EUR|GBP]{3})/);
   if (!match) {
     // reply = "Invalid mention format. Try @cedi_rates " + Math.floor(Math.random() * 1000) + " USD"
     return;
@@ -150,12 +168,12 @@ const callback = async ({ data }) => {
     // res.status(200).send("Invalid mention format. Try @newtroahmed 10 USD")
   }
   const amount = match[2];
-  const from = match[3].toUpperCase();
-  const result = await getExchangeRate(from, amount);
+  const from = match[3].toUpperCase() as Currency;
+  const result = await getExchangeRate(from, amount) as ExchangeRateResponse;
   reply = `The equivalent of ${amount} ${from} is ${result?.new_amount} GHS. \n \n Thank you for using this bot 😎`;
   await client.v2.reply(reply, data.id);
 };
-await bearerClient.v2.updateStreamRules({
+bearerClient.v2.updateStreamRules({
   add: [{ value: "@newtroahmed", tag: "mentions" }],
 });
 const stream = bearerClient.v2.searchStream({
@@ -166,7 +184,7 @@ const stream = bearerClient.v2.searchStream({
 const connect = () => {
   stream.connect({ autoReconnect: true, autoReconnectRetries: Infinity });
 };
-const restartStream = (err) => {
+const restartStream = (err:Error) => {
   stream.close(),
     // stream.connect({ autoReconnect: true, autoReconnectRetries: Infinity }),
     connect();
@@ -179,8 +197,8 @@ stream.on(ETwitterStreamEvent.Connected, () =>
   console.log("Stream is started.")
 );
 
-stream.on(ETwitterStreamEvent.ConnectError, (err) => restartStream(err));
-stream.on(ETwitterStreamEvent.Data, (data) => callback(data));
+stream.on(ETwitterStreamEvent.ConnectError, (err: Error) => restartStream(err));
+stream.on(ETwitterStreamEvent.Data, (data: StreamResponseData) => callback(data));
 
 stream.on(
   // Emitted when Node.js {response} is closed by remote or using .close().
@@ -196,3 +214,4 @@ connect();
 // app.listen(PORT, function () {
 //   console.log("server started on port " + PORT);
 // });
+
